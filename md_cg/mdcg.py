@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """md 认知图 · 存储、检索与认知循环
 
 对齐白箱认知架构（《白箱智能是什么？》系列·第 1-5 篇）：
@@ -991,8 +991,8 @@ def neg_condition_hits(neg_conditions, scene_text, own_topic_text="") -> list:
                 # 即命中（`不是梅雨季节，现在是梅雨季节` 的第二次出现没被否定，
                 # 故仍命中）。逐次判而非「整串搜一次否定词」，正是为了不把
                 # `不适合X` 里的 `不`（作用在「适合」上）当成对 X 的否定。
-                if any(not _negated_at(scene_norm, k)
-                       for k in _occurrences(scene_norm, item)):
+                _o = _occurrences(scene_norm, item)
+                if bool(_o) and not _negated_at(scene_norm, _o[-1]):
                     hits.append(str(n))
             continue
         # 全词命中：词面齐全才算问到点上。归一后的词与归一串同口径比较
