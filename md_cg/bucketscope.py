@@ -89,23 +89,28 @@ DAY_LOOKBACK = 14
 
 
 def _is_expired(node, now=None):
-    """节点是否已过期（valid_until 早于 now）。
+    """桶内节点的时效判据——**复用检索面唯一真源 `trust.is_expired`**。
 
-    判据与检索面一致：只认 frontmatter.valid_until（ISO 日期/时间），解析失败不算过期
-    （宁放过不错杀——过期是显式字段，不是推断）。
+    为什么不在本模块自己解析日期（两处必须一起看）：
+
+    1. **崩溃**：早先此处手写 `time.mktime(time.strptime(...))` 而复用 `time` 却
+       没有 `import time`。`validity=True` 且节点带 `valid_until` 时必抛
+       `NameError`；而 `mdcos.recall` 的桶补召回整段包在 `except Exception` 里，
+       异常被**静默吞掉**，表现为「桶补召回一条都没补」而不是报错——比原 #843 更隐蔽。
+    2. **漏判**：手写只认 `valid_until` / `validUntil`，而 `trust.validity` 的终点
+       别名是 `effective_until` > `valid_until` > `expires_at` > `expire_at` >
+       `expiry` > `deadline`。用后五个别名标记过期的记忆会被判成「未过期」，
+       照样被装回 pack——#843 的原始症状因此**并未修全**。
+
+    形状适配只做一层：`store.get()` 把端点放在 `frontmatter`；索引节点放顶层。
+    两处都交给 `trust` 判，本模块**不另立第二份时间解析**（口径单点）。
     """
-    fm = node.get("frontmatter") or {}
-    until = fm.get("valid_until") or fm.get("validUntil")
-    if not until:
-        return False
-    t = now if now is not None else time.time()
-    raw = str(until).strip()
-    for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
-        try:
-            return time.mktime(time.strptime(raw[:19], fmt)) < float(t)
-        except ValueError:
-            continue
-    return False
+    from . import trust                      # noqa: PLC0415 —— 避免模块级环依赖
+
+    fm = node.get("frontmatter")
+    if isinstance(fm, dict) and trust.is_expired(fm, now=now):
+        return True
+    return trust.is_expired(node, now=now)
 
 
 def _recency_key(node):
